@@ -26,6 +26,22 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Validate API key format
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          echo "Key length: ${#ANTHROPIC_API_KEY}"
+          echo "Key prefix: ${ANTHROPIC_API_KEY:0:10}..."
+          python3 -c "
+import os, anthropic
+key = os.environ['ANTHROPIC_API_KEY'].strip()
+print(f'Stripped length: {len(key)}')
+print(f'Starts with: {key[:10]}')
+client = anthropic.Anthropic(api_key=key)
+msg = client.messages.create(model='claude-haiku-4-5-20251001', max_tokens=10, messages=[{'role':'user','content':'hi'}])
+print('API key OK')
+"
+
       - name: Run curation pipeline
         run: python weekly_curation.py
         env:
