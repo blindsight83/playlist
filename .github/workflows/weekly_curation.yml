@@ -1,0 +1,70 @@
+name: Weekly Music Curation
+
+on:
+  schedule:
+    - cron: '0 17 * * 5'   # Every Friday at 17:00 UTC (new release Friday)
+  workflow_dispatch:         # Manual trigger for testing
+
+permissions:
+  contents: write            # needed to push to gh-pages
+
+jobs:
+  curate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run curation pipeline
+        run: python weekly_curation.py
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
+          SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
+          SPOTIFY_REFRESH_TOKEN: ${{ secrets.SPOTIFY_REFRESH_TOKEN }}
+          SPOTIFY_PLAYLIST_ID: ${{ secrets.SPOTIFY_PLAYLIST_ID }}
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+          RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+
+      - name: Upload curation output (artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: curation-output-${{ github.run_id }}
+          path: output/
+          retention-days: 90
+
+      - name: Publish to GitHub Pages
+        if: success()
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Grab the generated HTML
+          HTML_FILE=$(ls output/preview_*.html 2>/dev/null | tail -1)
+          [ -z "$HTML_FILE" ] && HTML_FILE="output/preview.html"
+
+          # Switch to (or create) gh-pages branch
+          git fetch origin gh-pages 2>/dev/null || true
+          git checkout gh-pages 2>/dev/null || git checkout --orphan gh-pages
+
+          # Keep only the HTML — wipe everything else
+          git rm -rf . --quiet 2>/dev/null || true
+
+          # Copy the HTML as index.html
+          cp "$HTML_FILE" index.html
+
+          git add index.html
+          git commit -m "Weekly curation — $(date +'%Y-%m-%d')" || echo "Nothing to commit"
+          git push origin gh-pages

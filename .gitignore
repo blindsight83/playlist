@@ -1,0 +1,7 @@
+.env
+__pycache__/
+*.py[cod]
+*.pyc
+.DS_Store
+.cache
+output/
