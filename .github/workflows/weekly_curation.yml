@@ -26,21 +26,18 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Validate API key format
+      - name: Validate API key
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           echo "Key length: ${#ANTHROPIC_API_KEY}"
-          echo "Key prefix: ${ANTHROPIC_API_KEY:0:10}..."
-          python3 -c "
-import os, anthropic
-key = os.environ['ANTHROPIC_API_KEY'].strip()
-print(f'Stripped length: {len(key)}')
-print(f'Starts with: {key[:10]}')
-client = anthropic.Anthropic(api_key=key)
-msg = client.messages.create(model='claude-haiku-4-5-20251001', max_tokens=10, messages=[{'role':'user','content':'hi'}])
-print('API key OK')
-"
+          echo "Key prefix: ${ANTHROPIC_API_KEY:0:12}..."
+          curl -s -o /dev/null -w "Anthropic API status: %{http_code}\n" \
+            -H "x-api-key: $ANTHROPIC_API_KEY" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "content-type: application/json" \
+            -d '{"model":"claude-haiku-4-5-20251001","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}' \
+            https://api.anthropic.com/v1/messages
 
       - name: Run curation pipeline
         run: python weekly_curation.py
@@ -67,20 +64,13 @@ print('API key OK')
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Grab the generated HTML
           HTML_FILE=$(ls output/preview_*.html 2>/dev/null | tail -1)
           [ -z "$HTML_FILE" ] && HTML_FILE="output/preview.html"
 
-          # Switch to (or create) gh-pages branch
           git fetch origin gh-pages 2>/dev/null || true
           git checkout gh-pages 2>/dev/null || git checkout --orphan gh-pages
-
-          # Keep only the HTML — wipe everything else
           git rm -rf . --quiet 2>/dev/null || true
-
-          # Copy the HTML as index.html
           cp "$HTML_FILE" index.html
-
           git add index.html
           git commit -m "Weekly curation — $(date +'%Y-%m-%d')" || echo "Nothing to commit"
           git push origin gh-pages
