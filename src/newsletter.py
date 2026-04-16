@@ -723,13 +723,14 @@ def send(curation_text: str, enrichment: dict | None = None) -> None:
     week_date = date.today().strftime("%B %d, %Y")
     html = build_html(curation_text, week_date, enrichment)
 
-    smtp_user = os.environ["SMTP_USER"]
-    smtp_pass = os.environ["SMTP_PASS"]
+    smtp_user = os.environ["SMTP_USER"]          # Gmail login address
+    smtp_pass = os.environ["SMTP_PASS"].replace(" ", "")  # strip spaces from app password
     recipient = os.environ["RECIPIENT_EMAIL"]
+    sender    = os.environ.get("SMTP_FROM", smtp_user)  # display From address
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = f"Weekly Curation — {week_date}"
-    msg["From"] = smtp_user
+    msg["From"] = sender
     msg["To"] = recipient
     msg.attach(MIMEText(html, "html"))
 
@@ -738,4 +739,4 @@ def send(curation_text: str, enrichment: dict | None = None) -> None:
         server.login(smtp_user, smtp_pass)
         server.sendmail(smtp_user, recipient, msg.as_string())
 
-    print(f"[newsletter] sent to {recipient}")
+    print(f"[newsletter] sent from {sender} to {recipient}")
