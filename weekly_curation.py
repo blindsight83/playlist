@@ -76,14 +76,14 @@ def main():
     print(f"Saved to {preview_path}\n")
 
     # 6. Send newsletter
-    if os.environ.get("SENDGRID_API_KEY"):
+    if os.environ.get("SMTP_USER") and os.environ.get("SMTP_PASS"):
         print("--- Sending newsletter ---")
         try:
             newsletter.send(curation_output, enrichment)
         except Exception as e:
             print(f"[newsletter] error: {e}\n")
     else:
-        print("--- Newsletter skipped (SENDGRID_API_KEY not set) ---\n")
+        print("--- Newsletter skipped (SMTP_USER/SMTP_PASS not set) ---\n")
 
     print("=== Done ===")
 

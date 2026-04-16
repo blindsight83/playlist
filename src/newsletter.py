@@ -1,13 +1,14 @@
 """
 Newsletter formatter and sender.
 Converts Claude's markdown curation output into a styled HTML email
-and sends it via SendGrid.
+and sends it via Gmail SMTP (smtplib — no external service needed).
 """
 import os
 import re
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from datetime import date
-import sendgrid
-from sendgrid.helpers.mail import Mail, To, From, Subject, HtmlContent
 
 
 CATEGORY_COLORS = {
@@ -722,15 +723,19 @@ def send(curation_text: str, enrichment: dict | None = None) -> None:
     week_date = date.today().strftime("%B %d, %Y")
     html = build_html(curation_text, week_date, enrichment)
 
+    smtp_user = os.environ["SMTP_USER"]
+    smtp_pass = os.environ["SMTP_PASS"]
     recipient = os.environ["RECIPIENT_EMAIL"]
-    sg = sendgrid.SendGridAPIClient(api_key=os.environ["SENDGRID_API_KEY"])
 
-    message = Mail(
-        from_email=From("curation@weekly.music", "Weekly Curation"),
-        to_emails=To(recipient),
-        subject=Subject(f"Weekly Curation — {week_date}"),
-        html_content=HtmlContent(html),
-    )
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = f"Weekly Curation — {week_date}"
+    msg["From"] = smtp_user
+    msg["To"] = recipient
+    msg.attach(MIMEText(html, "html"))
 
-    response = sg.send(message)
-    print(f"[newsletter] sent to {recipient} — status {response.status_code}")
+    with smtplib.SMTP("smtp.gmail.com", 587) as server:
+        server.starttls()
+        server.login(smtp_user, smtp_pass)
+        server.sendmail(smtp_user, recipient, msg.as_string())
+
+    print(f"[newsletter] sent to {recipient}")
